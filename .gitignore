@@ -1,0 +1,20 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# Data files (large)
+outputs/*.jsonl
+*.jsonl
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Lock files (optional, can be committed)
+# uv.lock
