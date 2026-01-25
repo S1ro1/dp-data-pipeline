@@ -106,8 +106,8 @@ async def evaluate_sample(
 
         prompt = EVALUATION_PROMPT.format(
             module_name=module_name,
-            python_code=python_code[:4000],  # Truncate if too long
-            completion=completion[:8000],  # Truncate if too long
+            python_code=python_code,
+            completion=completion,
         )
 
         for attempt in range(MAX_RETRIES):

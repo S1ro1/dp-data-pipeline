@@ -8,12 +8,14 @@ This project filters and evaluates the `siro1/kernelbook-glm4-evals` dataset for
 dp-filtering/
 ├── scripts/           # Python scripts
 │   ├── filter_dataset.py      # Main filtering pipeline
+│   ├── generate_prompts.py    # Synthetic prompt generation
 │   ├── analyze_correlation.py # Correlation analysis
 │   ├── keep_best.py           # Deduplication script
 │   └── upload_datasets.py     # Upload to HuggingFace with splits
 ├── outputs/           # Generated datasets (gitignored)
 │   ├── filtered_dataset.jsonl
-│   └── filtered_dataset-filtered.jsonl
+│   ├── filtered_dataset-filtered.jsonl
+│   └── synthetic_prompts.jsonl
 ├── plots/             # Visualization outputs
 │   ├── correlation_analysis.png
 │   └── joint_distribution.png
@@ -71,6 +73,22 @@ Uploads both datasets with 90/10 train/validation splits.
 uv run python scripts/upload_datasets.py
 ```
 
+### 4. Generate Synthetic Prompts
+Generates task specifications from PyTorch modules using GPT-5.2. Creates (prompt, module_name, python_code) tuples for SFT training.
+
+```bash
+# Full run (18,162 samples)
+uv run python scripts/generate_prompts.py
+
+# Test mode (5 samples)
+TEST_MODE=true uv run python scripts/generate_prompts.py
+```
+
+Output: `outputs/synthetic_prompts.jsonl` with fields:
+- `prompt`: Generated task specification
+- `module_name`: Original module name
+- `python_code`: Original PyTorch implementation
+
 ## Evaluation Criteria
 
 ### Difficulty (0-10)
@@ -107,3 +125,8 @@ uv run python scripts/upload_datasets.py
 - All scripts should be run from the project root directory
 - Large dataset files are gitignored - regenerate or download from HuggingFace
 - The Prime Intellect API uses OpenAI-compatible endpoints at `https://api.pinference.ai/api/v1`
+
+## Code Rules
+- Do not write code that can silently produce wrong results, instead code should explicitly fail
+- Never do hacks, that can silently cause wrong results, i.e. truncating code inside of prompts, etc.
+- Write code that is easy to understand, if section of code is not straightforward, add comments
