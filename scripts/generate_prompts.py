@@ -42,15 +42,17 @@ Your specification should include:
    - The new module class should be named `{module_name}New`
    - Specify the expected `__init__` parameters
    - Specify the `forward` method signature
-5. **Behavioral Requirements**: Edge cases, numerical precision, any constraints
+5. **Behavioral Requirements**: Edge cases, any constraints
 6. **Implementation Language**: Triton (OpenAI's GPU programming language)
+7. **Learnable Parameters**: If explicitly specified in the reference, specify the learnable parameters, if reference computes only forward pass, do not specify any learnable parameters
 
 Do NOT include:
 - Specific Triton implementation details (block sizes, memory patterns, etc.)
 - Code snippets or pseudocode from the original PyTorch implementation
 - References to how Triton works internally
+- Assumptions about the implementation - the reference is a source of truth, do not make assumptions about the implementation, i.e. reduction dtype, etc.
 
-The specification should be detailed enough that a developer familiar with Triton could implement a correct, functionally equivalent module.
+The specification should be detailed enough that a developer familiar with Triton could implement a correct, functionally equivalent module. Your specification CAN NOT reference the original PyTorch implementation or any of its functions, classes or specifics of the test cases.
 
 ---
 
