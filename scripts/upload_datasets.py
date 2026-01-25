@@ -12,7 +12,6 @@ Usage:
 import argparse
 import json
 import os
-from pathlib import Path
 
 from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
@@ -21,13 +20,13 @@ from huggingface_hub import login
 load_dotenv()
 
 # Configuration
-FILTERED_FILE = "outputs/filtered_dataset.jsonl"
-UNIQUE_FILE = "outputs/filtered_dataset-filtered.jsonl"
-SYNTHETIC_FILE = "outputs/synthetic_prompts.jsonl"
-FILTERED_REPO = "siro1/kernelbook-glm4-evals-filtered"
-UNIQUE_REPO = "siro1/kernelbook-glm4-evals-unique"
+FILTERED_FILE = os.environ["FILTERED_DATASET_PATH"]
+UNIQUE_FILE = os.environ["UNIQUE_DATASET_PATH"]
+SYNTHETIC_FILE = os.environ["SYNTHETIC_DATASET_PATH"]
+FILTERED_REPO = "siro1/kernelbook-glm4_7-evals-filtered"
+UNIQUE_REPO = "siro1/kernelbook-glm4_7-evals-unique"
 SYNTHETIC_REPO = "siro1/kernelbook-synthetic-tasks"
-SPLIT_RATIO = 0.1  # 10% validation
+SPLIT_RATIO = 0.1
 SEED = 42
 
 

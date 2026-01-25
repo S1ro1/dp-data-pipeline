@@ -1,0 +1,22 @@
+output_dir = "outputs"
+max_concurrent = 256
+
+rollouts_per_example = 1
+reasoning_field = "reasoning"
+per_rollout = "true"
+
+[save.disk]
+
+[client]
+base_url = ["http://localhost:8000/v1"]
+api_key_var = "PRIME_API_KEY"
+headers = {"X-Prime-Team-ID" = "clyvldofb0000gg1kx39rgzjq"}
+
+[model]
+name = "zai-org/GLM-4.7-FP8"
+
+[[env]]
+id = "siro/kernelbook-env"
+name = "kernelbook"
+num_examples = -1
+rollouts_per_example = 1

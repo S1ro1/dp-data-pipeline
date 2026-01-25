@@ -30,29 +30,13 @@ TEST_MODE = os.environ.get("TEST_MODE", "").lower() == "true"
 TEST_SAMPLES = 5  # Number of samples for test mode
 
 
-EVALUATION_PROMPT = """You are an expert evaluator for CUDA/Triton kernel code. Given a kernel conversion task and its solution, provide two ratings.
+EVALUATION_PROMPT = """You are an expert evaluator for CUDA/Triton kernel code. Given a kernel conversion task and its solution, provide a difficulty rating.
 
-## 1. Difficulty (0-10): How hard is this kernel conversion task?
+## Difficulty Rating (low, medium, high): How hard is this kernel conversion task?
 
-- 0: Trivial copy/identity kernel
-- 1-2: Simple elementwise operations (relu, add, multiply)
-- 3-4: Basic reductions or simple fused operations
-- 5-6: Moderate complexity (softmax, layernorm, basic attention)
-- 7-8: Complex operations (full attention, conv2d, complex fusions)
-- 9-10: Advanced implementations (FlashAttention variants, ResNet blocks, complex architectures)
-
-## 2. Style Quality (0-10): How well-written is the Triton kernel code?
-
-Evaluate the CODE QUALITY of the Triton implementation. Most working solutions should score 4-7. Use the full range:
-
-- 0-1: Broken or completely unreadable code
-- 2-3: Works but very messy (poor naming, no structure, confusing flow)
-- 4-5: Acceptable (functional code, standard patterns, minor issues)
-- 5-6: Good (clear structure, reasonable naming, follows Triton conventions)
-- 7-8: Very good (clean, well-organized, efficient memory access patterns, good use of Triton features)
-- 9-10: Excellent (exemplary code, optimal tiling, perfect memory coalescing, educational quality)
-
-Consider: variable naming, code organization, proper use of Triton primitives (tl.load, tl.store, masks), block sizing, memory access patterns, and overall readability.
+- low: Trivial copy/identity kernel, elementwise operations
+- medium: basic reductions, matrix operations
+- high: fused operations, full model architectures
 
 ---
 
@@ -71,16 +55,16 @@ Consider: variable naming, code organization, proper use of Triton primitives (t
 ---
 
 Respond ONLY with:
-<difficulty>N</difficulty>
-<style>N</style>"""
+<difficulty>{difficulty}</difficulty>
+"""
 
 
-def extract_tags(text: str, tag: str) -> int | None:
-    """Extract integer value from XML-style tags."""
-    pattern = rf"<{tag}>(\d+)</{tag}>"
+def extract_difficulty(text: str) -> str | None:
+    """Extract difficulty rating from text."""
+    pattern = r"<difficulty>(low|medium|high)</difficulty>"
     match = re.search(pattern, text)
     if match:
-        return int(match.group(1))
+        return match.group(1).lower()
     return None
 
 
@@ -100,7 +84,9 @@ async def evaluate_sample(
         # Extract completion text
         completion_messages = sample.get("completion", [])
         if completion_messages and isinstance(completion_messages, list):
-            completion = completion_messages[0].get("content", "") if completion_messages else ""
+            completion = (
+                completion_messages[0].get("content", "") if completion_messages else ""
+            )
         else:
             completion = str(completion_messages)
 
@@ -120,24 +106,24 @@ async def evaluate_sample(
                 )
 
                 evaluation = response.choices[0].message.content
-                difficulty = extract_tags(evaluation, "difficulty")
-                style = extract_tags(evaluation, "style")
+                difficulty = extract_difficulty(evaluation)
 
                 pbar.update(1)
 
                 # Return full sample dict with added evaluation fields
                 result = dict(sample)  # Copy all original fields
                 result["difficulty"] = difficulty
-                result["style"] = style
                 result["evaluation_raw"] = evaluation
 
                 return result
 
             except Exception as e:
                 if attempt < MAX_RETRIES - 1:
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    await asyncio.sleep(2**attempt)  # Exponential backoff
                 else:
-                    print(f"\nFailed to evaluate sample {sample.get('example_id', idx)}: {e}")
+                    print(
+                        f"\nFailed to evaluate sample {sample.get('example_id', idx)}: {e}"
+                    )
                     pbar.update(1)
                     return None
 
@@ -149,13 +135,15 @@ async def main():
 
     # Load dataset
     print("\nLoading dataset...")
-    ds = load_dataset("siro1/kernelbook-glm4-evals", split="train")
+    ds = load_dataset("siro1/kernelbook-glm4_7-evals", split="train")
     total_samples = len(ds)
 
     print(f"Original columns: {ds.column_names}")
 
     # Filter by reward threshold
-    filtered_indices = [i for i, sample in enumerate(ds) if sample["reward"] > REWARD_THRESHOLD]
+    filtered_indices = [
+        i for i, sample in enumerate(ds) if sample["reward"] > REWARD_THRESHOLD
+    ]
     samples_to_evaluate = [ds[i] for i in filtered_indices]
 
     # Test mode: limit samples
@@ -171,20 +159,21 @@ async def main():
     print(f"Reward threshold:             > {REWARD_THRESHOLD}")
     print(f"Samples passing threshold:    {len(samples_to_evaluate):,}")
     print(f"Samples skipped:              {total_samples - len(samples_to_evaluate):,}")
-    print(f"Percentage to evaluate:       {len(samples_to_evaluate)/total_samples*100:.1f}%")
+    print(
+        f"Percentage to evaluate:       {len(samples_to_evaluate) / total_samples * 100:.1f}%"
+    )
     print("-" * 40)
 
-    # Reward distribution for filtered samples
     rewards = [s["reward"] for s in samples_to_evaluate]
-    print(f"\nFiltered samples reward stats:")
+    print("\nFiltered samples reward stats:")
     print(f"  Min reward:  {min(rewards):.4f}")
     print(f"  Max reward:  {max(rewards):.4f}")
-    print(f"  Avg reward:  {sum(rewards)/len(rewards):.4f}")
+    print(f"  Avg reward:  {sum(rewards) / len(rewards):.4f}")
 
     print(f"\nModel: {MODEL}")
     print(f"Batch size (concurrent): {BATCH_SIZE}")
     print(f"Output file: {OUTPUT_FILE}")
-    print(f"Columns: ALL original + difficulty, style, evaluation_raw")
+    print("Columns: ALL original + difficulty, style, evaluation_raw")
     print("=" * 60)
 
     # Initialize client
@@ -194,10 +183,8 @@ async def main():
         default_headers={"X-Prime-Team-ID": os.environ["PRIME_TEAM_ID"]},
     )
 
-    # Create semaphore for rate limiting
     semaphore = asyncio.Semaphore(BATCH_SIZE)
 
-    # Process samples
     print(f"\nStarting evaluation of {len(samples_to_evaluate):,} samples...")
     start_time = time.time()
 
@@ -210,11 +197,9 @@ async def main():
 
     elapsed = time.time() - start_time
 
-    # Filter out None results (failed evaluations)
     successful_results = [r for r in results if r is not None]
     failed_count = len(results) - len(successful_results)
 
-    # Write results to JSONL
     output_path = Path(OUTPUT_FILE)
     with output_path.open("w") as f:
         for result in successful_results:
@@ -228,31 +213,16 @@ async def main():
     print(f"Successful:             {len(successful_results):,}")
     print(f"Failed:                 {failed_count:,}")
     print(f"Time elapsed:           {elapsed:.1f}s")
-    print(f"Rate:                   {len(results)/elapsed:.1f} samples/sec")
+    print(f"Rate:                   {len(results) / elapsed:.1f} samples/sec")
     print(f"Output saved to:        {OUTPUT_FILE}")
 
-    # Show columns in output
-    if successful_results:
-        print(f"\nOutput columns: {list(successful_results[0].keys())}")
+    difficulties = [
+        r["difficulty"] for r in successful_results if r.get("difficulty") is not None
+    ]
 
-    # Difficulty/style distribution
-    if successful_results:
-        difficulties = [r["difficulty"] for r in successful_results if r.get("difficulty") is not None]
-        styles = [r["style"] for r in successful_results if r.get("style") is not None]
-
-        if difficulties:
-            print(f"\nDifficulty distribution:")
-            print(f"  Min: {min(difficulties)}, Max: {max(difficulties)}, Avg: {sum(difficulties)/len(difficulties):.1f}")
-
-            # Histogram
-            for i in range(11):
-                count = difficulties.count(i)
-                bar = "█" * (count // max(1, len(difficulties) // 50))
-                print(f"  {i:2d}: {count:4d} {bar}")
-
-        if styles:
-            print(f"\nStyle distribution:")
-            print(f"  Min: {min(styles)}, Max: {max(styles)}, Avg: {sum(styles)/len(styles):.1f}")
+    for diff in ("low", "medium", "high"):
+        count = difficulties.count(diff)
+        print(f"  {diff}: {count:4d} ({count / len(difficulties) * 100:.1f}%)")
 
     print("=" * 60)
 

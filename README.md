@@ -1,123 +1,117 @@
-# dp-experiments
+# dp-data-pipeline
 
-Experiments for filtering and evaluating Triton kernel datasets for SFT (Supervised Fine-Tuning).
+Data processing pipeline for filtering and preparing Triton kernel datasets for SFT (Supervised Fine-Tuning).
 
 ## Overview
 
-This project processes the `siro1/kernelbook-glm4-evals` dataset to:
-1. Filter high-quality samples (reward > 0.85)
-2. Evaluate difficulty and code style using LLM-as-judge (GPT-5.2)
-3. Analyze correlations between model evaluations and benchmark performance
-4. Generate synthetic task prompts from PyTorch modules
-5. Prepare datasets for SFT training
+This pipeline processes PyTorch-to-Triton kernel conversion datasets through filtering, evaluation, and synthetic data generation to create high-quality training datasets for SFT.
 
-## Results
+**Pipeline Steps:**
+0. **(Optional)** Generate base evaluation dataset using prime-rl synthesis
+1. Filter high-quality samples (reward > 0.85) and evaluate difficulty
+2. Generate synthetic task specifications from PyTorch modules
+3. Deduplicate by module name (keep best per module)
+4. Analyze sequence lengths for training configuration
+5. Upload to HuggingFace with train/val splits
 
-### Datasets on HuggingFace
+## Datasets
 
-| Dataset | Samples | Description |
-|---------|---------|-------------|
-| [kernelbook-glm4-evals](https://huggingface.co/datasets/siro1/kernelbook-glm4-evals) | 18,162 | Original dataset with PyTorch modules and Triton kernels |
-| [kernelbook-glm4-evals-filtered](https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-filtered) | 7,181 | Filtered by reward > 0.85 with difficulty/style ratings |
-| [kernelbook-glm4-evals-unique](https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-unique) | 2,967 | Deduplicated by module name |
+### Source Dataset
+- **[GPUMODE/KernelBook](https://huggingface.co/datasets/GPUMODE/KernelBook)** (18,162 samples)
+  - Original PyTorch modules with metadata
+  - Used as source for synthetic prompt generation
 
-### Key Findings
+### Generated Base Dataset
+- **[siro1/kernelbook-glm4_7-evals](https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals)** (18,162 samples)
+  - Generated using prime-rl synthesis pipeline with GLM-4.7-FP8 model
+  - Contains PyTorch modules, generated Triton kernels, and evaluation metrics (reward scores)
+  - Created by running vLLM inference + synthesis (step 0 below)
 
-**Correlation Analysis:**
-- Difficulty vs Reward: r = +0.07 (negligible positive)
-- Style vs Reward: r = -0.03 (negligible)
-- Difficulty vs Style: r = -0.49 (moderate negative)
+### Processed Datasets
+- **[siro1/kernelbook-glm4_7-evals-filtered](https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-filtered)** (~7,181 samples, 90/10 split)
+  - Filtered subset with reward > 0.85
+  - Enriched with GPT-5.2 difficulty ratings: **low**, **medium**, **high**
+  - Used for SFT training on high-quality kernel conversions
 
-**Conclusion:** Benchmark reward is largely independent of LLM-judged difficulty and style. The negative correlation between difficulty and style suggests the model rates harder tasks as having lower code quality.
+- **[siro1/kernelbook-glm4_7-evals-unique](https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-unique)** (~2,967 samples, 90/10 split)
+  - Deduplicated version keeping only best sample per module name
+  - Reduces redundancy for more diverse training data
 
-### Visualizations
+- **[siro1/kernelbook-synthetic-tasks](https://huggingface.co/datasets/siro1/kernelbook-synthetic-tasks)** (18,162 samples)
+  - Synthetic task specifications generated from PyTorch modules
+  - Each sample: `(prompt, module_name, python_code)` tuple
+  - Prompts describe what to implement without implementation details
+  - Used for training models to convert natural language specs to Triton
 
-![Correlation Analysis](plots/correlation_analysis.png)
-
-## Usage
-
-### Setup
+## Quick Start
 
 ```bash
-# Clone and install
-git clone https://github.com/yourusername/dp-experiments.git
-cd dp-experiments
+# Install dependencies
 uv sync
 
-# Configure credentials
-cp .env.example .env
-# Edit .env with your API keys
-```
+# Configure .env (see Environment Variables below)
 
-### Run Pipeline
-
-```bash
-# Filter dataset (evaluates 7,181 samples)
-uv run python scripts/filter_dataset.py
-
-# Generate synthetic prompts from PyTorch modules (18,162 samples)
+# Run pipeline (see scripts/README.md for details)
+uv run python scripts/filter_and_enrich_by_difficulty.py
 uv run python scripts/generate_prompts.py
-
-# Analyze correlations
-uv run python scripts/analyze_correlation.py
-
-# Deduplicate
-uv run python scripts/keep_best.py
-
-# Upload datasets to HuggingFace
-uv run python scripts/upload_datasets.py
+uv run python scripts/filter_unique_best.py
+uv run python scripts/analyze_seq_length.py
+uv run python scripts/upload_datasets.py all
 ```
 
-### Test Mode
+**Test Mode:** Run with `TEST_MODE=true` to process only 5 samples.
 
+**Step 0 (Optional):** To generate the base dataset from scratch:
 ```bash
-TEST_MODE=true uv run python scripts/filter_dataset.py
+# Requires prime-rl: https://github.com/S1ro1/prime-rl
+# Start vLLM server:
+vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
+  --enable-chunked-prefill --speculative-config.method mtp \
+  --speculative-config.num-speculative-tokens 1 --enable-prefix-caching \
+  zai-org/GLM-4.7-FP8
+
+# Run synthesis:
+uv run synthesize @ configs/synth.toml
+
+# Manually upload outputs/ to HuggingFace as siro1/kernelbook-glm4_7-evals
 ```
 
-## Project Structure
+## Environment Variables
 
-```
-dp-experiments/
-├── scripts/           # Python scripts
-│   ├── filter_dataset.py      # Main filtering pipeline
-│   ├── generate_prompts.py    # Synthetic prompt generation
-│   ├── analyze_correlation.py # Correlation analysis
-│   ├── keep_best.py           # Deduplication
-│   └── upload_datasets.py     # Upload to HuggingFace
-├── outputs/           # Generated datasets (gitignored)
-├── plots/             # Visualization outputs
-├── CLAUDE.md          # AI assistant instructions
-└── README.md          # This file
+Create a `.env` file with:
+```bash
+PRIME_API_KEY=your_prime_intellect_api_key
+PRIME_TEAM_ID=your_team_id
+HF_TOKEN=your_huggingface_token
+DATASET_PATH=siro1/kernelbook-glm4_7-evals-filtered
+FILTERED_DATASET_PATH=outputs/filtered_dataset.jsonl
+UNIQUE_DATASET_PATH=outputs/filtered_dataset-filtered.jsonl
+SYNTHETIC_DATASET_PATH=outputs/synthetic_prompts.jsonl
 ```
 
-## Evaluation Criteria
+## Scripts
 
-### Difficulty Scale (0-10)
-| Score | Description |
-|-------|-------------|
-| 0 | Trivial copy/identity kernel |
-| 1-2 | Simple elementwise (relu, add, multiply) |
-| 3-4 | Basic reductions or fused operations |
-| 5-6 | Moderate (softmax, layernorm, basic attention) |
-| 7-8 | Complex (full attention, conv2d, fusions) |
-| 9-10 | Advanced (FlashAttention, ResNet blocks) |
+- **[filter_and_enrich_by_difficulty.py](scripts/filter_and_enrich_by_difficulty.py)** - Filter by reward and evaluate difficulty
+- **[generate_prompts.py](scripts/generate_prompts.py)** - Generate synthetic task specifications
+- **[filter_unique_best.py](scripts/filter_unique_best.py)** - Deduplicate by module name
+- **[analyze_seq_length.py](scripts/analyze_seq_length.py)** - Analyze sequence lengths
+- **[upload_datasets.py](scripts/upload_datasets.py)** - Upload to HuggingFace with splits
 
-### Style Scale (0-10)
-| Score | Description |
-|-------|-------------|
-| 0-1 | Broken or unreadable |
-| 2-3 | Messy but functional |
-| 4-5 | Acceptable, standard patterns |
-| 5-6 | Good structure, follows conventions |
-| 7-8 | Very good, efficient memory patterns |
-| 9-10 | Excellent, optimal and educational |
+See **[scripts/README.md](scripts/README.md)** for detailed documentation.
+
+## Difficulty Ratings
+
+- **low**: Trivial copy/identity kernel, simple elementwise operations
+- **medium**: Basic reductions, standard matrix operations
+- **high**: Fused operations, complex attention mechanisms, full model architectures
 
 ## Requirements
 
 - Python 3.13+
 - [uv](https://github.com/astral-sh/uv) package manager
-- Prime Intellect API key
-- HuggingFace token (for uploads)
+- Prime Intellect API key (GPT-5.2 access)
+- HuggingFace token
+- [prime-rl](https://github.com/S1ro1/prime-rl) + vLLM (optional, for step 0 only)
 
 ## License
 

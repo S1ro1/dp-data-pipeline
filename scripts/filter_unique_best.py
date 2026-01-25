@@ -12,14 +12,9 @@ OUTPUT_FILE = "outputs/filtered_dataset-filtered.jsonl"
 
 def calculate_score(entry: dict) -> float:
     """Calculate total_score = reward * difficulty * style. Returns 0 if any value is None."""
-    reward = entry.get("reward", 0) or 0
-    difficulty = entry.get("difficulty")
-    style = entry.get("style")
+    reward = entry["reward"]
 
-    if difficulty is None or style is None:
-        return 0.0
-
-    return reward * difficulty * style
+    return reward
 
 
 def main():

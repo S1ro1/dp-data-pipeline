@@ -4,22 +4,21 @@ Analyze sequence lengths in the filtered dataset to determine optimal seq_len fo
 """
 
 import json
-from collections import Counter
+import os
 
+from datasets import load_dataset
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
 MODEL_NAME = "Qwen/Qwen3-30B-A3B-Thinking-2507"
-DATASET_PATH = "outputs/filtered_dataset.jsonl"
+DATASET_PATH = os.environ["DATASET_PATH"]
 
 print(f"Loading tokenizer: {MODEL_NAME}")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
 print(f"Loading dataset: {DATASET_PATH}")
-data = []
-with open(DATASET_PATH, "r") as f:
-    for line in f:
-        data.append(json.loads(line))
+
+data = load_dataset(DATASET_PATH, split="train")
 
 print(f"Loaded {len(data)} samples")
 
