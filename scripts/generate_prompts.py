@@ -29,7 +29,7 @@ TEST_MODE = os.environ.get("TEST_MODE", "").lower() == "true"
 TEST_SAMPLES = 5
 
 # Source: original unfiltered dataset
-SOURCE_DATASET = "siro1/kernelbook-glm4-evals"
+SOURCE_DATASET = "GPUMODE/KernelBook"
 
 PROMPT_GENERATION_TEMPLATE = """You are an expert technical writer. Given a PyTorch module, write a clear task specification for implementing it in Triton.
 
