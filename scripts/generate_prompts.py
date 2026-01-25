@@ -88,14 +88,8 @@ async def generate_prompt(
 ) -> dict | None:
     """Generate a task specification for a single sample."""
     async with semaphore:
-        info = sample.get("info", {}) or {}
-        module_name = info.get("module_name", "")
-        python_code = info.get("python_code", "")
-
-        # Skip if missing essential fields
-        if not python_code or not module_name:
-            pbar.update(1)
-            return None
+        module_name = sample["module_name"]
+        python_code = sample["python_code"]
 
         generation_prompt = PROMPT_GENERATION_TEMPLATE.format(
             module_name=module_name,

@@ -8,7 +8,8 @@ This project processes the `siro1/kernelbook-glm4-evals` dataset to:
 1. Filter high-quality samples (reward > 0.85)
 2. Evaluate difficulty and code style using LLM-as-judge (GPT-5.2)
 3. Analyze correlations between model evaluations and benchmark performance
-4. Prepare datasets for SFT training
+4. Generate synthetic task prompts from PyTorch modules
+5. Prepare datasets for SFT training
 
 ## Results
 
@@ -16,6 +17,7 @@ This project processes the `siro1/kernelbook-glm4-evals` dataset to:
 
 | Dataset | Samples | Description |
 |---------|---------|-------------|
+| [kernelbook-glm4-evals](https://huggingface.co/datasets/siro1/kernelbook-glm4-evals) | 18,162 | Original dataset with PyTorch modules and Triton kernels |
 | [kernelbook-glm4-evals-filtered](https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-filtered) | 7,181 | Filtered by reward > 0.85 with difficulty/style ratings |
 | [kernelbook-glm4-evals-unique](https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-unique) | 2,967 | Deduplicated by module name |
 
@@ -53,11 +55,17 @@ cp .env.example .env
 # Filter dataset (evaluates 7,181 samples)
 uv run python scripts/filter_dataset.py
 
+# Generate synthetic prompts from PyTorch modules (18,162 samples)
+uv run python scripts/generate_prompts.py
+
 # Analyze correlations
 uv run python scripts/analyze_correlation.py
 
 # Deduplicate
 uv run python scripts/keep_best.py
+
+# Upload datasets to HuggingFace
+uv run python scripts/upload_datasets.py
 ```
 
 ### Test Mode
@@ -72,8 +80,10 @@ TEST_MODE=true uv run python scripts/filter_dataset.py
 dp-experiments/
 ├── scripts/           # Python scripts
 │   ├── filter_dataset.py      # Main filtering pipeline
+│   ├── generate_prompts.py    # Synthetic prompt generation
 │   ├── analyze_correlation.py # Correlation analysis
-│   └── keep_best.py           # Deduplication
+│   ├── keep_best.py           # Deduplication
+│   └── upload_datasets.py     # Upload to HuggingFace
 ├── outputs/           # Generated datasets (gitignored)
 ├── plots/             # Visualization outputs
 ├── CLAUDE.md          # AI assistant instructions
