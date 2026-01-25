@@ -1,0 +1,70 @@
+# SFT Configuration for Triton Kernel Training
+# Model: Qwen3-30B-A3B-Thinking on kernelbook-glm4-evals-filtered dataset
+#
+# Dataset stats:
+#   - 7,181 samples
+#   - 69.2M total tokens
+#   - Mean seq length: 9,643 tokens
+#   - 93.5% of samples fit in 16,384 tokens
+#
+# Training params:
+#   - ~131K tokens per batch (8 samples * 16384 seq_len)
+#   - ~528 steps per epoch (69.2M / 131K)
+
+# Number of steps - set to None for full epoch or specify exact steps
+# For 1 epoch: ~528 steps
+# For 3 epochs: ~1584 steps
+max_steps = 1200
+
+[model]
+name = "Qwen/Qwen3-30B-A3B-Thinking-2507"
+seq_len = 16384
+trust_remote_code = true
+attn = "flash_attention_2"
+fused_lm_head_chunk_size = 2048
+ep = 2
+
+[model.ac]
+
+
+[model.compile]
+
+
+[data]
+name = "siro1/kernelbook-glm4-evals-filtered"
+seq_len = 32768
+batch_size = 4  # 8 * 16384 = 131,072 tokens (~131K)
+micro_batch_size = 1  # Gradient accumulation
+
+[data.validation]
+name = "siro1/kernelbook-glm4-evals-filtered"
+interval = 100
+split = "validation"
+
+
+[optim]
+type = "adamw"
+lr = 2e-6
+weight_decay = 0.01
+max_norm = 1.0
+betas1 = 0.9
+betas2 = 0.999
+
+[scheduler]
+type = "constant"
+
+[tokenizer]
+trust_remote_code = true
+
+[ckpt]
+interval = 400  # Save every 400 steps (~4 checkpoints total)
+
+[ckpt.weights]
+save_sharded = true
+save_format = "safetensors"
+
+[wandb]
+project = "kernelbook-sft"
+
+[log]
+level = "debug"

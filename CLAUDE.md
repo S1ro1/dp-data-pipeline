@@ -9,7 +9,8 @@ dp-filtering/
 ├── scripts/           # Python scripts
 │   ├── filter_dataset.py      # Main filtering pipeline
 │   ├── analyze_correlation.py # Correlation analysis
-│   └── keep_best.py           # Deduplication script
+│   ├── keep_best.py           # Deduplication script
+│   └── upload_datasets.py     # Upload to HuggingFace with splits
 ├── outputs/           # Generated datasets (gitignored)
 │   ├── filtered_dataset.jsonl
 │   └── filtered_dataset-filtered.jsonl
@@ -64,14 +65,10 @@ uv run python scripts/analyze_correlation.py
 ```
 
 ### 3. Upload to HuggingFace
-```python
-from datasets import Dataset
-from huggingface_hub import login
-import json
+Uploads both datasets with 90/10 train/validation splits.
 
-login(token="your_token")
-data = [json.loads(l) for l in open("outputs/filtered_dataset.jsonl")]
-Dataset.from_list(data).push_to_hub("username/dataset-name")
+```bash
+uv run python scripts/upload_datasets.py
 ```
 
 ## Evaluation Criteria
@@ -101,8 +98,9 @@ Dataset.from_list(data).push_to_hub("username/dataset-name")
 
 ## HuggingFace Datasets
 
-- Filtered: https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-filtered (7,181 samples)
-- Unique: https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-unique (2,967 samples)
+- Original: https://huggingface.co/datasets/siro1/kernelbook-glm4-evals (18,162 samples: 16,345 train / 1,817 val)
+- Filtered: https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-filtered (7,181 samples: 6,462 train / 719 val)
+- Unique: https://huggingface.co/datasets/siro1/kernelbook-glm4-evals-unique (2,967 samples: 2,670 train / 297 val)
 
 ## Notes
 
