@@ -10,6 +10,7 @@ Detailed documentation for the data processing pipeline scripts.
 3. **Deduplicate** - Keep best samples per module
 4. **Analyze Lengths** - Determine optimal sequence lengths
 5. **Upload** - Push datasets to HuggingFace
+6. **Remove Reasoning** (Optional) - Strip reasoning from uploaded datasets
 
 ---
 
@@ -188,6 +189,41 @@ uv run python scripts/upload_datasets.py synthetic
 
 ---
 
+## Step 6: `remove_reasoning.py` (Optional)
+
+Removes reasoning from completion content, keeping only the answer field.
+
+**Note:** This step requires datasets to be uploaded to HuggingFace first (Step 5).
+
+### What it does
+- Loads a dataset from HuggingFace (raw, filtered, or unique)
+- Parses `<answer>...</answer>` from `completion[0]["content"]`
+- Removes all reasoning, keeping only the answer wrapped in tags
+- Preserves dataset splits (train/validation) if they exist
+- Uploads result with `-no-reasoning` suffix
+
+### Usage
+```bash
+# Process base dataset
+uv run python scripts/remove_reasoning.py raw
+
+# Process filtered dataset
+uv run python scripts/remove_reasoning.py filtered
+
+# Process unique dataset
+uv run python scripts/remove_reasoning.py unique
+```
+
+### Output Datasets
+- `siro1/kernelbook-glm4_7-evals-no-reasoning`
+- `siro1/kernelbook-glm4_7-evals-filtered-no-reasoning`
+- `siro1/kernelbook-glm4_7-evals-unique-no-reasoning`
+
+### Use Case
+Use these datasets when you want to train models without chain-of-thought reasoning, providing only the final answer in the completion.
+
+---
+
 ## Complete Pipeline
 
 Run the full pipeline from scratch:
@@ -215,7 +251,13 @@ uv run python scripts/filter_and_enrich_by_difficulty.py
 uv run python scripts/generate_prompts.py
 uv run python scripts/filter_unique_best.py
 uv run python scripts/analyze_seq_length.py
+
+# 4. Upload datasets
 uv run python scripts/upload_datasets.py all
+
+# 5. (Optional) Remove reasoning from uploaded datasets
+uv run python scripts/remove_reasoning.py filtered
+uv run python scripts/remove_reasoning.py unique
 ```
 
 ## Test Mode

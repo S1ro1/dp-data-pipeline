@@ -11,6 +11,7 @@ dp-data-pipeline/
 │   ├── generate_prompts.py                  # Synthetic prompt generation
 │   ├── filter_unique_best.py                # Deduplication by module
 │   ├── analyze_seq_length.py                # Sequence length analysis
+│   ├── remove_reasoning.py                  # Remove reasoning from completions
 │   └── upload_datasets.py                   # Upload to HuggingFace with splits
 ├── outputs/           # Generated datasets (gitignored)
 │   ├── filtered_dataset.jsonl
@@ -33,6 +34,10 @@ uv run python scripts/generate_prompts.py
 uv run python scripts/filter_unique_best.py
 uv run python scripts/analyze_seq_length.py
 uv run python scripts/upload_datasets.py all
+
+# Optional: Remove reasoning from uploaded datasets
+# uv run python scripts/remove_reasoning.py filtered
+# uv run python scripts/remove_reasoning.py unique
 ```
 
 ## Environment Variables
@@ -131,6 +136,18 @@ uv run python scripts/upload_datasets.py unique
 uv run python scripts/upload_datasets.py synthetic
 ```
 
+### 6. Remove Reasoning (Optional)
+Removes reasoning from completions, keeping only the answer field. Requires datasets on HuggingFace first.
+
+```bash
+# Process any dataset (raw/filtered/unique)
+uv run python scripts/remove_reasoning.py raw
+uv run python scripts/remove_reasoning.py filtered
+uv run python scripts/remove_reasoning.py unique
+```
+
+Parses `<answer>...</answer>` from completion content, removes all reasoning, and uploads with `-no-reasoning` suffix.
+
 ## Evaluation Criteria
 
 ### Difficulty (low/medium/high)
@@ -145,6 +162,8 @@ uv run python scripts/upload_datasets.py synthetic
 - **Filtered:** https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-filtered (~7,181 samples, 90/10 split) - Reward > 0.85 with difficulty ratings
 - **Unique:** https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-unique (~2,967 samples, 90/10 split) - Deduplicated by module
 - **Synthetic:** https://huggingface.co/datasets/siro1/kernelbook-synthetic-tasks (18,162 samples, no split) - Task specifications
+- **Filtered (No Reasoning):** https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-filtered-no-reasoning (~7,181 samples, 90/10 split) - Filtered with reasoning removed
+- **Unique (No Reasoning):** https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-unique-no-reasoning (~2,967 samples, 90/10 split) - Unique with reasoning removed
 
 ## Notes
 

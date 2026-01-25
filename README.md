@@ -13,6 +13,7 @@ This pipeline processes PyTorch-to-Triton kernel conversion datasets through fil
 3. Deduplicate by module name (keep best per module)
 4. Analyze sequence lengths for training configuration
 5. Upload to HuggingFace with train/val splits
+6. **(Optional)** Remove reasoning from completions (requires datasets on HF)
 
 ## Datasets
 
@@ -43,6 +44,15 @@ This pipeline processes PyTorch-to-Triton kernel conversion datasets through fil
   - Prompts describe what to implement without implementation details
   - Used for training models to convert natural language specs to Triton
 
+### No-Reasoning Variants (Optional)
+- **[siro1/kernelbook-glm4_7-evals-filtered-no-reasoning](https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-filtered-no-reasoning)** (~7,181 samples, 90/10 split)
+  - Filtered dataset with reasoning removed from completions
+  - Contains only `<answer>{answer}</answer>` in completion content
+
+- **[siro1/kernelbook-glm4_7-evals-unique-no-reasoning](https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-unique-no-reasoning)** (~2,967 samples, 90/10 split)
+  - Unique dataset with reasoning removed from completions
+  - Contains only `<answer>{answer}</answer>` in completion content
+
 ## Quick Start
 
 ```bash
@@ -57,6 +67,10 @@ uv run python scripts/generate_prompts.py
 uv run python scripts/filter_unique_best.py
 uv run python scripts/analyze_seq_length.py
 uv run python scripts/upload_datasets.py all
+
+# Optional: Remove reasoning from uploaded datasets
+# uv run python scripts/remove_reasoning.py filtered
+# uv run python scripts/remove_reasoning.py unique
 ```
 
 **Test Mode:** Run with `TEST_MODE=true` to process only 5 samples.
@@ -95,6 +109,7 @@ SYNTHETIC_DATASET_PATH=outputs/synthetic_prompts.jsonl
 - **[generate_prompts.py](scripts/generate_prompts.py)** - Generate synthetic task specifications
 - **[filter_unique_best.py](scripts/filter_unique_best.py)** - Deduplicate by module name
 - **[analyze_seq_length.py](scripts/analyze_seq_length.py)** - Analyze sequence lengths
+- **[remove_reasoning.py](scripts/remove_reasoning.py)** - Remove reasoning from completions (keep answer only)
 - **[upload_datasets.py](scripts/upload_datasets.py)** - Upload to HuggingFace with splits
 
 See **[scripts/README.md](scripts/README.md)** for detailed documentation.
