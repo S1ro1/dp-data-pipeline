@@ -116,7 +116,7 @@ def main():
     try:
         ds = load_dataset(source_repo)
         has_splits = True
-        print(f"Loaded dataset with splits:")
+        print("Loaded dataset with splits:")
         for split_name, split_data in ds.items():
             print(f"  {split_name}: {len(split_data):,} samples")
     except ValueError:

@@ -85,7 +85,7 @@ vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
   zai-org/GLM-4.7-FP8
 
 # Run synthesis:
-uv run synthesize @ configs/synth.toml
+uv run --project prime-rl synthesize @ configs/synth.toml
 
 # Manually upload outputs/ to HuggingFace as siro1/kernelbook-glm4_7-evals
 ```

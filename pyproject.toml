@@ -3,7 +3,7 @@ name = "dp-filtering"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "accelerate>=1.12.0",
     "datasets>=4.4.2",
@@ -16,4 +16,14 @@ dependencies = [
     "torch>=2.9.1",
     "tqdm>=4.67.1",
     "transformers>=4.57.5",
+    "prime-rl[flash-attn,flash-attn-3]",
+    "typer[all]>=0.21.1",
+    "typer-slim>=0.21.1",
+    "numpy==2.2.6",
 ]
+
+[tool.uv.sources]
+prime-rl = {workspace = true}
+
+[tool.uv.workspace]
+members = ["prime-rl"]

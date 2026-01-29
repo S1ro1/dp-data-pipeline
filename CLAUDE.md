@@ -13,6 +13,7 @@ dp-data-pipeline/
 │   ├── analyze_seq_length.py                # Sequence length analysis
 │   ├── remove_reasoning.py                  # Remove reasoning from completions
 │   └── upload_datasets.py                   # Upload to HuggingFace with splits
+├── prime-rl/          # Submodule for synthesis pipeline
 ├── outputs/           # Generated datasets (gitignored)
 │   ├── filtered_dataset.jsonl
 │   ├── filtered_dataset-filtered.jsonl
@@ -25,6 +26,12 @@ dp-data-pipeline/
 ## Quick Start
 
 ```bash
+# Clone with submodules (for new clones)
+git clone --recurse-submodules <repo-url>
+
+# Or initialize submodules in existing clone
+git submodule update --init --recursive
+
 # Install dependencies
 uv sync
 
@@ -59,7 +66,7 @@ SYNTHETIC_DATASET_PATH=outputs/synthetic_prompts.jsonl
 Generates the initial `siro1/kernelbook-glm4_7-evals` dataset using prime-rl synthesis pipeline.
 
 **Prerequisites:**
-- Install prime-rl from https://github.com/S1ro1/prime-rl
+- Initialize the prime-rl submodule (see Quick Start)
 - Start vLLM inference server:
 ```bash
 vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
@@ -70,7 +77,7 @@ vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
 
 **Run synthesis:**
 ```bash
-uv run synthesize @ configs/synth.toml
+uv run --project prime-rl synthesize @ configs/synth.toml
 ```
 
 **Output:** Evaluation in `outputs/` directory (manually upload to HuggingFace as `siro1/kernelbook-glm4_7-evals`)
@@ -165,12 +172,27 @@ Parses `<answer>...</answer>` from completion content, removes all reasoning, an
 - **Filtered (No Reasoning):** https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-filtered-no-reasoning (~7,181 samples, 90/10 split) - Filtered with reasoning removed
 - **Unique (No Reasoning):** https://huggingface.co/datasets/siro1/kernelbook-glm4_7-evals-unique-no-reasoning (~2,967 samples, 90/10 split) - Unique with reasoning removed
 
+## Submodule Management
+
+The `prime-rl` directory is a git submodule. Common operations:
+
+```bash
+# Update submodule to latest commit from remote
+git submodule update --remote prime-rl
+
+# After pulling changes that updated the submodule reference
+git submodule update --init --recursive
+
+# Check submodule status
+git submodule status
+```
+
 ## Notes
 
 - All scripts should be run from the project root directory
 - Large dataset files are gitignored - regenerate or download from HuggingFace
 - The Prime Intellect API uses OpenAI-compatible endpoints at `https://api.pinference.ai/api/v1`
-- Base dataset generation (step 0) requires prime-rl from https://github.com/S1ro1/prime-rl and vLLM
+- Base dataset generation (step 0) requires vLLM
 - Step 0 is optional - you can start from the existing `siro1/kernelbook-glm4_7-evals` dataset on HuggingFace
 
 ## Code Rules

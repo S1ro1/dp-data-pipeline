@@ -29,7 +29,7 @@ vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
   zai-org/GLM-4.7-FP8
 
 # Terminal 2: Run synthesis
-uv run synthesize @ configs/synth.toml
+uv run --project prime-rl synthesize @ configs/synth.toml
 ```
 
 **Output:** Evaluation results in `outputs/` directory (manually upload to HuggingFace as `siro1/kernelbook-glm4_7-evals`)

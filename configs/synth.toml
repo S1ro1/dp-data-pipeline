@@ -13,7 +13,7 @@ api_key_var = "PRIME_API_KEY"
 headers = {"X-Prime-Team-ID" = "clyvldofb0000gg1kx39rgzjq"}
 
 [model]
-name = "zai-org/GLM-4.7-FP8"
+name = "zai-org/GLM-4.7"
 
 [[env]]
 id = "siro/kernelbook-env"
