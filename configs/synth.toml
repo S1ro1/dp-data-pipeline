@@ -1,5 +1,5 @@
 output_dir = "outputs"
-max_concurrent = 256
+max_concurrent = 512
 
 rollouts_per_example = 1
 reasoning_field = "reasoning"
@@ -13,7 +13,7 @@ api_key_var = "PRIME_API_KEY"
 headers = {"X-Prime-Team-ID" = "clyvldofb0000gg1kx39rgzjq"}
 
 [model]
-name = "zai-org/GLM-4.7"
+name = "moonshotai/Kimi-K2-Thinking"
 
 [[env]]
 id = "siro/kernelbook-env"

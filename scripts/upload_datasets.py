@@ -20,14 +20,14 @@ from huggingface_hub import login
 load_dotenv()
 
 # Configuration
-FILTERED_FILE = os.environ["FILTERED_DATASET_PATH"]
-UNIQUE_FILE = os.environ["UNIQUE_DATASET_PATH"]
-SYNTHETIC_FILE = os.environ["SYNTHETIC_DATASET_PATH"]
+SPLIT_RATIO = 0.1
+SEED = 42
+FILTERED_FILE = os.environ.get("FILTERED_DATASET_PATH", None)
+UNIQUE_FILE = os.environ.get("UNIQUE_DATASET_PATH", None)
+SYNTHETIC_FILE = os.environ.get("SYNTHETIC_DATASET_PATH", None)
 FILTERED_REPO = "siro1/kernelbook-glm4_7-evals-filtered"
 UNIQUE_REPO = "siro1/kernelbook-glm4_7-evals-unique"
 SYNTHETIC_REPO = "siro1/kernelbook-synthetic-tasks"
-SPLIT_RATIO = 0.1
-SEED = 42
 
 
 def load_jsonl(filepath: str) -> list[dict]:
@@ -51,10 +51,7 @@ def upload_with_splits(data: list[dict], repo_name: str, description: str):
     ds = Dataset.from_list(data)
     split = ds.train_test_split(test_size=SPLIT_RATIO, seed=SEED)
 
-    dataset_dict = DatasetDict({
-        "train": split["train"],
-        "validation": split["test"]
-    })
+    dataset_dict = DatasetDict({"train": split["train"], "validation": split["test"]})
 
     print(f"Train samples: {len(dataset_dict['train']):,}")
     print(f"Validation samples: {len(dataset_dict['validation']):,}")
@@ -84,7 +81,7 @@ def main():
         nargs="?",
         choices=["filtered", "unique", "synthetic", "all"],
         default="all",
-        help="Which dataset to upload (default: all)"
+        help="Which dataset to upload (default: all)",
     )
     args = parser.parse_args()
 
@@ -103,7 +100,7 @@ def main():
         upload_with_splits(
             filtered_data,
             FILTERED_REPO,
-            "Filtered kernelbook samples with difficulty/style evaluations"
+            "Filtered kernelbook samples with difficulty/style evaluations",
         )
         uploaded.append(f"Filtered: https://huggingface.co/datasets/{FILTERED_REPO}")
 
@@ -111,9 +108,7 @@ def main():
     if args.dataset in ("unique", "all"):
         unique_data = load_jsonl(UNIQUE_FILE)
         upload_with_splits(
-            unique_data,
-            UNIQUE_REPO,
-            "Unique kernelbook samples (best per module)"
+            unique_data, UNIQUE_REPO, "Unique kernelbook samples (best per module)"
         )
         uploaded.append(f"Unique: https://huggingface.co/datasets/{UNIQUE_REPO}")
 
@@ -123,7 +118,7 @@ def main():
         upload_without_splits(
             synthetic_data,
             SYNTHETIC_REPO,
-            "Synthetic task specifications for Triton kernel generation"
+            "Synthetic task specifications for Triton kernel generation",
         )
         uploaded.append(f"Synthetic: https://huggingface.co/datasets/{SYNTHETIC_REPO}")
 

@@ -20,6 +20,7 @@ dependencies = [
     "typer[all]>=0.21.1",
     "typer-slim>=0.21.1",
     "numpy==2.2.6",
+    "protobuf==6.33.4",
 ]
 
 [tool.uv.sources]

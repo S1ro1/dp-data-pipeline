@@ -20,13 +20,13 @@ from tqdm.asyncio import tqdm_asyncio
 load_dotenv()
 
 # Configuration
-MODEL = "openai/gpt-5.2"
+MODEL = "moonshotai/kimi-k2-0905"
 BASE_URL = "https://api.pinference.ai/api/v1"
-BATCH_SIZE = 256
+BATCH_SIZE = 1024
 OUTPUT_FILE = "outputs/synthetic_prompts.jsonl"
 MAX_RETRIES = 3
 TEST_MODE = os.environ.get("TEST_MODE", "").lower() == "true"
-TEST_SAMPLES = 5
+TEST_SAMPLES = 10
 
 # Source: original unfiltered dataset
 SOURCE_DATASET = "GPUMODE/KernelBook"
@@ -72,6 +72,14 @@ Write the task specification:
 </specification>"""
 
 
+OUTPUT_FORMAT = """
+Output ONLY valid Python code between the markers below.
+
+BEGIN_PYTHON
+END_PYTHON
+"""
+
+
 def extract_specification(text: str) -> str | None:
     """Extract specification from XML-style tags."""
     pattern = r"<specification>\s*(.*?)\s*</specification>"
@@ -92,6 +100,7 @@ async def generate_prompt(
     async with semaphore:
         module_name = sample["module_name"]
         python_code = sample["python_code"]
+        triton_code = sample["triton_code"]
 
         generation_prompt = PROMPT_GENERATION_TEMPLATE.format(
             module_name=module_name,
@@ -116,12 +125,15 @@ async def generate_prompt(
                     pbar.update(1)
                     return None
 
+                specification = f"{specification}\n{OUTPUT_FORMAT}"
+
                 pbar.update(1)
 
                 return {
                     "prompt": specification,
                     "module_name": module_name,
                     "python_code": python_code,
+                    "triton_code": triton_code,
                 }
 
             except Exception as e:

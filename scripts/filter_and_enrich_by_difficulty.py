@@ -22,7 +22,7 @@ load_dotenv()
 # Configuration
 MODEL = "openai/gpt-5.2"
 BASE_URL = "https://api.pinference.ai/api/v1"
-REWARD_THRESHOLD = 0.85
+REWARD_THRESHOLD = 0.01
 BATCH_SIZE = 256  # Concurrent requests
 OUTPUT_FILE = "outputs/filtered_dataset.jsonl"
 MAX_RETRIES = 3
@@ -55,7 +55,7 @@ EVALUATION_PROMPT = """You are an expert evaluator for CUDA/Triton kernel code. 
 ---
 
 Respond ONLY with:
-<difficulty>{difficulty}</difficulty>
+<difficulty>...</difficulty>
 """
 
 
