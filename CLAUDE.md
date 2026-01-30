@@ -8,14 +8,15 @@ This project processes kernel conversion datasets for SFT training on Triton ker
 dp-data-pipeline/
 ├── scripts/                              # Python scripts
 │   ├── config.py                            # Shared configuration (paths, HF upload)
+│   ├── convert_generation_to_evals.py       # Convert vf-eval output to evals format
 │   ├── filter_and_enrich_by_difficulty.py   # Filter & evaluate difficulty
 │   ├── generate_prompts.py                  # Synthetic prompt generation
 │   ├── filter_unique_best.py                # Deduplication by module
 │   ├── analyze_seq_length.py                # Sequence length analysis
 │   └── remove_reasoning.py                  # Remove reasoning from completions
-├── prime-rl/          # Submodule for synthesis pipeline
 ├── outputs/           # Generated datasets (gitignored)
-│   └── {model}/       # Model-specific outputs (e.g., outputs/glm4_7/)
+│   └── {model}/       # Model-specific outputs (e.g., outputs/kimi_k2_thinking/)
+│       ├── evals_dataset.jsonl
 │       ├── filtered_dataset.jsonl
 │       ├── unique_dataset.jsonl
 │       └── synthetic_prompts.jsonl
@@ -27,17 +28,13 @@ dp-data-pipeline/
 ## Quick Start
 
 ```bash
-# Clone with submodules (for new clones)
-git clone --recurse-submodules <repo-url>
-
-# Or initialize submodules in existing clone
-git submodule update --init --recursive
-
 # Install dependencies
 uv sync
 
+# Configure .env (see Environment Variables below)
+
 # Set model name (optional, defaults to "glm4_7")
-export DATA_MODEL=glm4_7
+export DATA_MODEL=kimi_k2_thinking
 
 # Run complete pipeline (each script auto-uploads to HuggingFace)
 uv run python scripts/filter_and_enrich_by_difficulty.py
@@ -49,6 +46,8 @@ uv run python scripts/analyze_seq_length.py
 uv run python scripts/remove_reasoning.py filtered
 uv run python scripts/remove_reasoning.py unique
 ```
+
+**Test Mode:** Run with `TEST_MODE=true` to process only a few samples.
 
 ## Environment Variables
 
@@ -85,27 +84,74 @@ DATA_MODEL=qwen3_30b uv run python scripts/filter_and_enrich_by_difficulty.py
 ## Workflow
 
 ### 0. Generate Base Dataset (Optional)
-Generates the initial `siro1/kernelbook-{model}-evals` dataset using prime-rl synthesis pipeline.
+Generates the initial `siro1/kernelbook-{model}-evals` dataset using vf-eval synthesis pipeline.
 
 **Prerequisites:**
-- Initialize the prime-rl submodule (see Quick Start)
 - Start vLLM inference server:
 ```bash
-vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
-  --enable-chunked-prefill --speculative-config.method mtp \
-  --speculative-config.num-speculative-tokens 1 --enable-prefix-caching \
-  zai-org/GLM-4.7-FP8
+vllm serve moonshotai/Kimi-K2-Thinking --tensor-parallel-size 8 \
+  --decode-context-parallel-size 8 --enable-auto-tool-choice \
+  --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --trust-remote-code \
+  --async-scheduling --stream-interval 8 --enable-chunked-prefill \
+  --no-enable-prefix-caching
 ```
 
 **Run synthesis:**
 ```bash
-uv run --project prime-rl synthesize @ configs/synth.toml
+vf-eval siro/kernelbook-env --model moonshotai/Kimi-K2-Thinking \
+  --api-base-url http://localhost:8000/v1 --num-examples -1 \
+  --rollouts-per-example=1 --max-concurrent 512 -s -C trajectory -R --tui
 ```
 
-**Output:** Evaluation in `outputs/` directory (manually upload to HuggingFace as `siro1/kernelbook-{model}-evals`)
+**Output:** Evaluation in `outputs/` directory as `kernelbook-env.jsonl`
+
+### 0.5. Convert Generation Output to Evals Format
+Converts vf-eval output (with trajectory data) to the base evals format for downstream processing.
+
+```bash
+# Convert and upload to HuggingFace (default)
+DATA_MODEL=kimi_k2_thinking uv run python scripts/convert_generation_to_evals.py outputs/kernelbook-env.jsonl
+
+# Convert locally only (skip upload)
+uv run python scripts/convert_generation_to_evals.py outputs/kernelbook-env.jsonl --no-upload
+```
+
+**Input format (vf-eval output):**
+```json
+{
+  "example_id": 0,
+  "prompt": [{"role": "user", "content": "..."}],
+  "completion": [{"role": "assistant", "content": "BEGIN_PYTHON...END_PYTHON"}],
+  "answer": "extracted code",
+  "task": "default",
+  "info": {"module_name": "...", "python_code": "...", "triton_code": "..."},
+  "reward": 0.5,
+  "generation_ms": 1000.0,
+  "scoring_ms": 500.0,
+  "total_ms": 1500.0,
+  "speedup_reward": 0.5,
+  "num_turns": 1.0,
+  "trajectory": [{
+    "response": {
+      "choices": [{
+        "message": {"reasoning_content": "...thinking..."}
+      }]
+    }
+  }]
+}
+```
+
+**Output format (evals dataset):**
+- Removes `trajectory` field (large and not needed for downstream)
+- Extracts `reasoning_content` from `trajectory[-1].response.choices[0].message.reasoning_content`
+- Adds reasoning to completion: `[{"role": "assistant", "content": "...", "reasoning": "..."}]`
+- Adds `oai_tools: null` field
+
+Output: `outputs/{model}/evals_dataset.jsonl`
+Uploads to: `siro1/kernelbook-{model}-evals`
 
 ### 1. Filter and Enrich by Difficulty
-Evaluates samples from `siro1/kernelbook-{model}-evals` with reward > 0.01 using GPT-5.2.
+Evaluates samples from `siro1/kernelbook-{model}-evals` with reward > 0.85 using GPT-5.2.
 Adds difficulty rating (low/medium/high) to each sample.
 
 ```bash
@@ -193,34 +239,19 @@ Parses `<answer>...</answer>` from completion content, removes all reasoning, an
 All repos follow the pattern `siro1/kernelbook-{model}-...`:
 
 - **Source:** https://huggingface.co/datasets/GPUMODE/KernelBook (18,162 samples) - Original PyTorch modules
-- **Base:** `siro1/kernelbook-{model}-evals` - Generated using prime-rl synthesis
-- **Filtered:** `siro1/kernelbook-{model}-evals-filtered` (90/10 split) - Reward > 0.01 with difficulty ratings
+- **Base:** `siro1/kernelbook-{model}-evals` - Generated using vf-eval synthesis
+- **Filtered:** `siro1/kernelbook-{model}-evals-filtered` (90/10 split) - Reward > 0.85 with difficulty ratings
 - **Unique:** `siro1/kernelbook-{model}-evals-unique` (90/10 split) - Deduplicated by module
 - **Synthetic:** `siro1/kernelbook-{model}-synthetic-tasks` - Task specifications
 - **Filtered (No Reasoning):** `siro1/kernelbook-{model}-evals-filtered-no-reasoning` (90/10 split)
 - **Unique (No Reasoning):** `siro1/kernelbook-{model}-evals-unique-no-reasoning` (90/10 split)
-
-## Submodule Management
-
-The `prime-rl` directory is a git submodule. Common operations:
-
-```bash
-# Update submodule to latest commit from remote
-git submodule update --remote prime-rl
-
-# After pulling changes that updated the submodule reference
-git submodule update --init --recursive
-
-# Check submodule status
-git submodule status
-```
 
 ## Notes
 
 - All scripts should be run from the project root directory
 - Large dataset files are gitignored - regenerate or download from HuggingFace
 - The Prime Intellect API uses OpenAI-compatible endpoints at `https://api.pinference.ai/api/v1`
-- Base dataset generation (step 0) requires vLLM
+- Base dataset generation (step 0) requires vLLM and vf-eval
 - Step 0 is optional - you can start from existing datasets on HuggingFace
 - All processing scripts auto-upload to HuggingFace by default (use `--no-upload` to skip)
 

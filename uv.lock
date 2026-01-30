@@ -13,6 +13,7 @@ members = [
     "dp-filtering",
     "prime-rl",
 ]
+overrides = [{ name = "verifiers", git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=deepseek-interleave-think" }]
 
 [[package]]
 name = "absl-py"
@@ -1008,6 +1009,15 @@ wheels = [
 [package.optional-dependencies]
 http = [
     { name = "aiohttp" },
+]
+
+[[package]]
+name = "gepa"
+version = "0.0.27"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/99/6840f84498f2dcbfd27e8a15eeb4e637e84e9dbbd6331977b71f6ffad9c7/gepa-0.0.27.tar.gz", hash = "sha256:02ecb19e4aa6a1f5bb2994cd54b2057f25cd5e8cd662fee514303b2a8ba0a738", size = 155106, upload-time = "2026-01-28T00:33:51.72Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/bd/f9e83519099a9fd5d090520ab0c51a6278e473b914a9b32d1e812662dd3b/gepa-0.0.27-py3-none-any.whl", hash = "sha256:592beb084fd638d525edae84ca75ad8e9e9c3758e5498b933c17153addf5dd2d", size = 146454, upload-time = "2026-01-28T00:33:50.262Z" },
 ]
 
 [[package]]
@@ -2627,6 +2637,16 @@ wheels = [
 ]
 
 [[package]]
+name = "prime-tunnel"
+version = "0.1.0"
+source = { git = "https://github.com/PrimeIntellect-ai/prime.git?subdirectory=packages%2Fprime-tunnel&branch=feature%2Ftunnel#66440bb0d85585632d10c7c288e35da0a006f485" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "tenacity" },
+]
+
+[[package]]
 name = "prometheus-client"
 version = "0.24.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3946,10 +3966,11 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.1.9.post3"
-source = { git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=209774a#209774a22b6915eeff2091a1ce2782ecbe580ae7" }
+version = "0.1.10.dev0"
+source = { git = "https://github.com/PrimeIntellect-ai/verifiers.git?rev=deepseek-interleave-think#d822cab3da53f967da7680473b163a27f7bbad20" }
 dependencies = [
     { name = "datasets" },
+    { name = "gepa" },
     { name = "jinja2" },
     { name = "math-verify" },
     { name = "mcp" },
@@ -3957,6 +3978,7 @@ dependencies = [
     { name = "openai" },
     { name = "openai-agents" },
     { name = "prime-sandboxes" },
+    { name = "prime-tunnel" },
     { name = "pydantic" },
     { name = "requests" },
     { name = "rich" },

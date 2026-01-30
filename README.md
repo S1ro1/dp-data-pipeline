@@ -79,15 +79,13 @@ uv run python scripts/upload_datasets.py all
 ```bash
 # Requires prime-rl: https://github.com/S1ro1/prime-rl
 # Start vLLM server:
-vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
-  --enable-chunked-prefill --speculative-config.method mtp \
-  --speculative-config.num-speculative-tokens 1 --enable-prefix-caching \
-  zai-org/GLM-4.7-FP8
+vllm serve moonshotai/Kimi-K2-Thinking --tensor-parallel-size 8 --decode-context-parallel-size 8 --enable-auto-tool-choice --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --trust-remote-code --async-scheduling --stream-interval 8 --enable-chunked-prefill --no-enable-prefix-caching
 
 # Run synthesis:
-uv run --project prime-rl synthesize @ configs/synth.toml
+vf-eval siro/kernelbook-env --model moonshotai/Kimi-K2-Thinking --api-base-url http://localhost:8000/v1 --num-examples -1 --rollouts-per-example=1 --max-concurrent 512 -s -C trajectory -R --tui
 
-# Manually upload outputs/ to HuggingFace as siro1/kernelbook-glm4_7-evals
+# Manually upload outputs/ to HuggingFace as siro1/kernelbook-kimi-k2-evals
+DATA_MODEL=kimi-k2-thinking uv run python scripts/convert_generation_to_evals.py outputs/kernelbook-env.jsonl
 ```
 
 ## Environment Variables

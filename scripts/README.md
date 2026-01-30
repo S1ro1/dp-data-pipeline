@@ -27,7 +27,8 @@ DATA_MODEL=qwen3_30b uv run python scripts/filter_and_enrich_by_difficulty.py
 
 ## Pipeline Overview
 
-0. **Generate Base Dataset** (Optional) - Create evaluation dataset using prime-rl
+0. **Generate Base Dataset** (Optional) - Create evaluation dataset using vf-eval
+0.5. **Convert to Evals Format** - Convert vf-eval output to base evals format → auto-uploads
 1. **Filter & Enrich** - Evaluate samples with difficulty ratings → auto-uploads
 2. **Generate Prompts** - Create synthetic task specifications → auto-uploads
 3. **Deduplicate** - Keep best samples per module → auto-uploads
@@ -39,24 +40,94 @@ DATA_MODEL=qwen3_30b uv run python scripts/filter_and_enrich_by_difficulty.py
 ## Step 0: Generate Base Dataset (Optional)
 
 **Prerequisites:**
-- Initialize prime-rl submodule
-- Start vLLM inference server
+- Start vLLM inference server with reasoning model
 
 **Commands:**
 ```bash
 # Terminal 1: Start vLLM server
-vllm serve --tensor-parallel-size=8 --async-scheduling --stream-interval 8 \
-  --enable-chunked-prefill --speculative-config.method mtp \
-  --speculative-config.num-speculative-tokens 1 --enable-prefix-caching \
-  zai-org/GLM-4.7-FP8
+vllm serve moonshotai/Kimi-K2-Thinking --tensor-parallel-size 8 \
+  --decode-context-parallel-size 8 --enable-auto-tool-choice \
+  --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --trust-remote-code \
+  --async-scheduling --stream-interval 8 --enable-chunked-prefill \
+  --no-enable-prefix-caching
 
 # Terminal 2: Run synthesis
-uv run --project prime-rl synthesize @ configs/synth.toml
+vf-eval siro/kernelbook-env --model moonshotai/Kimi-K2-Thinking \
+  --api-base-url http://localhost:8000/v1 --num-examples -1 \
+  --rollouts-per-example=1 --max-concurrent 512 -s -C trajectory -R --tui
 ```
 
-**Output:** Evaluation results in `outputs/` directory (manually upload to HuggingFace as `siro1/kernelbook-{model}-evals`)
+**Output:** Evaluation results in `outputs/` directory as `kernelbook-env.jsonl`
 
 **Note:** This step is optional - you can start from existing datasets on HuggingFace.
+
+---
+
+## Step 0.5: `convert_generation_to_evals.py`
+
+Converts vf-eval output (with trajectory data) to the base evals format for downstream processing.
+
+### What it does
+- Reads vf-eval output JSONL file (contains trajectory with reasoning)
+- Extracts `reasoning_content` from `trajectory[-1].response.choices[0].message.reasoning_content`
+- Adds reasoning to completion: `[{"role": "assistant", "content": "...", "reasoning": "..."}]`
+- Removes trajectory field (large and not needed downstream)
+- Saves to `outputs/{model}/evals_dataset.jsonl`
+- Auto-uploads to `siro1/kernelbook-{model}-evals`
+
+### Usage
+```bash
+# Convert and upload to HuggingFace (default)
+DATA_MODEL=kimi_k2_thinking uv run python scripts/convert_generation_to_evals.py outputs/kernelbook-env.jsonl
+
+# Convert locally only (skip upload)
+uv run python scripts/convert_generation_to_evals.py outputs/kernelbook-env.jsonl --no-upload
+
+# Custom output path
+uv run python scripts/convert_generation_to_evals.py input.jsonl -o custom_output.jsonl
+```
+
+### Input Format (vf-eval output)
+```json
+{
+  "example_id": 0,
+  "prompt": [{"role": "user", "content": "..."}],
+  "completion": [{"role": "assistant", "content": "..."}],
+  "answer": "extracted code",
+  "task": "default",
+  "info": {"module_name": "...", "python_code": "...", "triton_code": "..."},
+  "reward": 0.5,
+  "generation_ms": 1000.0,
+  "scoring_ms": 500.0,
+  "total_ms": 1500.0,
+  "speedup_reward": 0.5,
+  "num_turns": 1.0,
+  "trajectory": [{
+    "response": {
+      "choices": [{"message": {"reasoning_content": "...thinking..."}}]
+    }
+  }]
+}
+```
+
+### Output Format (base evals)
+```json
+{
+  "example_id": 0,
+  "prompt": [{"role": "user", "content": "..."}],
+  "completion": [{"role": "assistant", "content": "...", "reasoning": "...thinking..."}],
+  "task": "default",
+  "reward": 0.5,
+  "generation_ms": 1000.0,
+  "scoring_ms": 500.0,
+  "total_ms": 1500.0,
+  "info": {"module_name": "...", "python_code": "...", "triton_code": "..."},
+  "answer": "extracted code",
+  "speedup_reward": 0.5,
+  "num_turns": 1.0,
+  "oai_tools": null
+}
+```
 
 ---
 
@@ -66,7 +137,7 @@ Filters high-quality samples and enriches them with difficulty ratings using GPT
 
 ### What it does
 - Loads `siro1/kernelbook-{model}-evals` from HuggingFace
-- Filters samples with `reward > 0.01`
+- Filters samples with `reward > 0.85`
 - Evaluates each sample for difficulty: **low**, **medium**, or **high**
 - Preserves all original columns + adds `difficulty`, `evaluation_raw`
 - Saves to `outputs/{model}/filtered_dataset.jsonl`
@@ -86,7 +157,7 @@ TEST_MODE=true uv run python scripts/filter_and_enrich_by_difficulty.py
 
 ### Configuration
 - `BATCH_SIZE = 256` - concurrent API requests
-- `REWARD_THRESHOLD = 0.01` - minimum reward to include
+- `REWARD_THRESHOLD = 0.85` - minimum reward to include
 - `MODEL = "openai/gpt-5.2"` - evaluation model via Prime Intellect API
 
 ### Difficulty Criteria
@@ -241,16 +312,22 @@ PRIME_TEAM_ID=your_team_id
 HF_TOKEN=your_huggingface_token
 EOF
 
-# 3. (Optional) Set model name
-export DATA_MODEL=glm4_7
+# 3. Set model name
+export DATA_MODEL=kimi_k2_thinking
 
-# 4. Run pipeline (each script auto-uploads)
+# 4. (Optional) Generate base dataset with vf-eval
+# See Step 0 for vLLM and vf-eval commands
+
+# 5. (Optional) Convert vf-eval output to evals format
+uv run python scripts/convert_generation_to_evals.py outputs/kernelbook-env.jsonl
+
+# 6. Run pipeline (each script auto-uploads)
 uv run python scripts/filter_and_enrich_by_difficulty.py
 uv run python scripts/generate_prompts.py
 uv run python scripts/filter_unique_best.py
 uv run python scripts/analyze_seq_length.py
 
-# 5. (Optional) Remove reasoning from uploaded datasets
+# 7. (Optional) Remove reasoning from uploaded datasets
 uv run python scripts/remove_reasoning.py filtered
 uv run python scripts/remove_reasoning.py unique
 ```

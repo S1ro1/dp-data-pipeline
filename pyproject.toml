@@ -28,3 +28,8 @@ prime-rl = {workspace = true}
 
 [tool.uv.workspace]
 members = ["prime-rl"]
+
+[tool.uv]
+override-dependencies = [
+  "verifiers @ git+https://github.com/PrimeIntellect-ai/verifiers.git@deepseek-interleave-think"
+]
