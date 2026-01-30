@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """
-Batched filtering script for kernelbook-glm4-evals dataset.
-Evaluates samples using GPT-5.2 to determine difficulty and style ratings.
+Batched filtering script for kernelbook-{model}-evals dataset.
+Evaluates samples using GPT-5.2 to determine difficulty ratings.
 Keeps ALL original columns for SFT training.
+
+Usage:
+    uv run python scripts/filter_and_enrich_by_difficulty.py           # Full run with upload
+    uv run python scripts/filter_and_enrich_by_difficulty.py --no-upload  # Skip upload
+    TEST_MODE=true uv run python scripts/filter_and_enrich_by_difficulty.py  # Test mode
 """
 
+import argparse
 import asyncio
-import json
 import os
 import re
 import time
-from pathlib import Path
 
 from datasets import load_dataset
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
+
+import config
 
 load_dotenv()
 
@@ -24,7 +30,6 @@ MODEL = "openai/gpt-5.2"
 BASE_URL = "https://api.pinference.ai/api/v1"
 REWARD_THRESHOLD = 0.01
 BATCH_SIZE = 256  # Concurrent requests
-OUTPUT_FILE = "outputs/filtered_dataset.jsonl"
 MAX_RETRIES = 3
 TEST_MODE = os.environ.get("TEST_MODE", "").lower() == "true"
 TEST_SAMPLES = 5  # Number of samples for test mode
@@ -129,13 +134,25 @@ async def evaluate_sample(
 
 
 async def main():
+    parser = argparse.ArgumentParser(description="Filter and enrich dataset by difficulty")
+    parser.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Skip uploading to HuggingFace",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("Dataset Filtering Script (Full Columns for SFT)")
     print("=" * 60)
+    config.print_config()
 
     # Load dataset
-    print("\nLoading dataset...")
-    ds = load_dataset("siro1/kernelbook-glm4_7-evals", split="train")
+    source_repo = config.get_source_repo()
+    output_path = config.get_filtered_path()
+
+    print(f"\nLoading dataset: {source_repo}...")
+    ds = load_dataset(source_repo, split="train")
     total_samples = len(ds)
 
     print(f"Original columns: {ds.column_names}")
@@ -172,8 +189,8 @@ async def main():
 
     print(f"\nModel: {MODEL}")
     print(f"Batch size (concurrent): {BATCH_SIZE}")
-    print(f"Output file: {OUTPUT_FILE}")
-    print("Columns: ALL original + difficulty, style, evaluation_raw")
+    print(f"Output file: {output_path}")
+    print("Columns: ALL original + difficulty, evaluation_raw")
     print("=" * 60)
 
     # Initialize client
@@ -200,10 +217,8 @@ async def main():
     successful_results = [r for r in results if r is not None]
     failed_count = len(results) - len(successful_results)
 
-    output_path = Path(OUTPUT_FILE)
-    with output_path.open("w") as f:
-        for result in successful_results:
-            f.write(json.dumps(result) + "\n")
+    # Save results
+    config.save_jsonl(successful_results, output_path)
 
     # Final statistics
     print("\n" + "=" * 60)
@@ -214,7 +229,6 @@ async def main():
     print(f"Failed:                 {failed_count:,}")
     print(f"Time elapsed:           {elapsed:.1f}s")
     print(f"Rate:                   {len(results) / elapsed:.1f} samples/sec")
-    print(f"Output saved to:        {OUTPUT_FILE}")
 
     difficulties = [
         r["difficulty"] for r in successful_results if r.get("difficulty") is not None
@@ -223,6 +237,11 @@ async def main():
     for diff in ("low", "medium", "high"):
         count = difficulties.count(diff)
         print(f"  {diff}: {count:4d} ({count / len(difficulties) * 100:.1f}%)")
+
+    # Upload to HuggingFace
+    if not args.no_upload:
+        config.hf_login()
+        config.upload_with_splits(successful_results, config.get_filtered_repo())
 
     print("=" * 60)
 

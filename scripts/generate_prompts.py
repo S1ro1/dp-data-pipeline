@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """
 Synthetic data generation pipeline for Triton kernel task specifications.
-Uses GPT-5.2 to generate detailed task prompts from (module_name, python_code).
-Output: (prompt, module_name, python_code) tuples.
+Uses kimi-k2-0905 to generate detailed task prompts from (module_name, python_code).
+Output: (prompt, module_name, python_code, triton_code, uuid) tuples.
+
+Usage:
+    uv run python scripts/generate_prompts.py              # Full run with upload
+    uv run python scripts/generate_prompts.py --no-upload  # Skip upload
+    TEST_MODE=true uv run python scripts/generate_prompts.py  # Test mode
 """
 
+import argparse
 import asyncio
-import json
 import os
 import re
 import time
-from pathlib import Path
 
 from datasets import load_dataset
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
+
+import config
 
 load_dotenv()
 
@@ -23,12 +29,11 @@ load_dotenv()
 MODEL = "moonshotai/kimi-k2-0905"
 BASE_URL = "https://api.pinference.ai/api/v1"
 BATCH_SIZE = 1024
-OUTPUT_FILE = "outputs/synthetic_prompts.jsonl"
 MAX_RETRIES = 3
 TEST_MODE = os.environ.get("TEST_MODE", "").lower() == "true"
 TEST_SAMPLES = 10
 
-# Source: original unfiltered dataset
+# Source: original unfiltered dataset (same for all models)
 SOURCE_DATASET = "GPUMODE/KernelBook"
 
 PROMPT_GENERATION_TEMPLATE = """You are an expert technical writer. Given a PyTorch module, write a clear task specification for implementing it in Triton.
@@ -148,9 +153,20 @@ async def generate_prompt(
 
 
 async def main():
+    parser = argparse.ArgumentParser(description="Generate synthetic task specifications")
+    parser.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Skip uploading to HuggingFace",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("Synthetic Prompt Generation Pipeline")
     print("=" * 60)
+    config.print_config()
+
+    output_path = config.get_synthetic_path()
 
     print(f"\nLoading dataset: {SOURCE_DATASET}...")
     ds = load_dataset(SOURCE_DATASET, split="train")
@@ -167,7 +183,7 @@ async def main():
     print(f"Total samples to process:  {len(samples):,}")
     print(f"Model: {MODEL}")
     print(f"Batch size (concurrent): {BATCH_SIZE}")
-    print(f"Output file: {OUTPUT_FILE}")
+    print(f"Output file: {output_path}")
     print("-" * 40)
 
     client = AsyncOpenAI(
@@ -191,12 +207,8 @@ async def main():
     successful = [r for r in results if r is not None]
     failed_count = len(results) - len(successful)
 
-    # Write results
-    output_path = Path(OUTPUT_FILE)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w") as f:
-        for result in successful:
-            f.write(json.dumps(result) + "\n")
+    # Save results
+    config.save_jsonl(successful, output_path)
 
     # Final statistics
     print("\n" + "=" * 60)
@@ -207,15 +219,19 @@ async def main():
     print(f"Failed/Skipped:         {failed_count:,}")
     print(f"Time elapsed:           {elapsed:.1f}s")
     print(f"Rate:                   {len(results) / elapsed:.1f} samples/sec")
-    print(f"Output saved to:        {OUTPUT_FILE}")
 
     # Prompt length statistics
     if successful:
         prompt_lengths = [len(r["prompt"]) for r in successful]
-        print(f"\nGenerated prompt lengths (chars):")
+        print("\nGenerated prompt lengths (chars):")
         print(f"  Min: {min(prompt_lengths):,}")
         print(f"  Max: {max(prompt_lengths):,}")
         print(f"  Avg: {sum(prompt_lengths) // len(prompt_lengths):,}")
+
+    # Upload to HuggingFace
+    if not args.no_upload:
+        config.hf_login()
+        config.upload_without_splits(successful, config.get_synthetic_repo())
 
     print("=" * 60)
 

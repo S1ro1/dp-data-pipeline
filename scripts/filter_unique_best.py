@@ -1,40 +1,48 @@
 #!/usr/bin/env python3
 """
-Keep only the best entry per module_name based on total_score (reward * difficulty * style).
+Keep only the best entry per module_name based on reward score.
+
+Usage:
+    uv run python scripts/filter_unique_best.py              # Full run with upload
+    uv run python scripts/filter_unique_best.py --no-upload  # Skip upload
 """
 
-import json
-from pathlib import Path
+import argparse
 
-INPUT_FILE = "outputs/filtered_dataset.jsonl"
-OUTPUT_FILE = "outputs/filtered_dataset-filtered.jsonl"
+import config
 
 
 def calculate_score(entry: dict) -> float:
-    """Calculate total_score = reward * difficulty * style. Returns 0 if any value is None."""
-    reward = entry["reward"]
-
-    return reward
+    """Calculate score for entry. Returns reward value."""
+    return entry["reward"]
 
 
 def main():
-    input_path = Path(INPUT_FILE)
-    output_path = Path(OUTPUT_FILE)
+    parser = argparse.ArgumentParser(description="Deduplicate by module, keep best")
+    parser.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Skip uploading to HuggingFace",
+    )
+    args = parser.parse_args()
+
+    print("=" * 60)
+    print("Unique Best Filter")
+    print("=" * 60)
+    config.print_config()
+
+    input_path = config.get_filtered_path()
+    output_path = config.get_unique_path()
 
     # Load all entries
-    entries = []
-    with input_path.open("r") as f:
-        for line in f:
-            if line.strip():
-                entries.append(json.loads(line))
-
-    print(f"Loaded {len(entries):,} entries from {INPUT_FILE}")
+    entries = config.load_jsonl(input_path)
+    print(f"\nLoaded {len(entries):,} entries from {input_path}")
 
     # Group by module_name and keep best
     best_by_module: dict[str, tuple[dict, float]] = {}
 
     for entry in entries:
-        module_name = entry.get("module_name", "Unknown")
+        module_name = entry["info"]["module_name"]
         score = calculate_score(entry)
 
         if module_name not in best_by_module or score > best_by_module[module_name][1]:
@@ -46,10 +54,8 @@ def main():
     # Sort by score descending for nice output
     best_entries.sort(key=calculate_score, reverse=True)
 
-    # Write output
-    with output_path.open("w") as f:
-        for entry in best_entries:
-            f.write(json.dumps(entry) + "\n")
+    # Save output
+    config.save_jsonl(best_entries, output_path)
 
     # Statistics
     scores = [calculate_score(e) for e in best_entries]
@@ -68,22 +74,26 @@ def main():
     print(f"Entries with score = 0:    {len(scores) - len(valid_scores):,}")
 
     if valid_scores:
-        print(f"\nScore statistics (valid only):")
+        print("\nScore statistics (valid only):")
         print(f"  Min score:   {min(valid_scores):.2f}")
         print(f"  Max score:   {max(valid_scores):.2f}")
         print(f"  Avg score:   {sum(valid_scores) / len(valid_scores):.2f}")
 
-    print(f"\nOutput saved to: {OUTPUT_FILE}")
-    print(f"{'=' * 60}")
-
     # Show top 10
-    print("\nTop 10 entries by total_score:")
+    print("\nTop 10 entries by score:")
     for i, entry in enumerate(best_entries[:10], 1):
         score = calculate_score(entry)
+        difficulty = entry.get("difficulty", "N/A")
         print(
-            f"  {i:2d}. {entry['module_name']:40s} score={score:.2f} "
-            f"(r={entry['reward']:.2f}, d={entry['difficulty']}, s={entry['style']})"
+            f"  {i:2d}. {entry.get('module_name', 'Unknown'):40s} score={score:.2f} d={difficulty}"
         )
+
+    # Upload to HuggingFace
+    if not args.no_upload:
+        config.hf_login()
+        config.upload_with_splits(best_entries, config.get_unique_repo())
+
+    print("=" * 60)
 
 
 if __name__ == "__main__":

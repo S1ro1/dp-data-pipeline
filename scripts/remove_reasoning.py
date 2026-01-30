@@ -3,31 +3,19 @@
 Remove reasoning from completion content, keeping only the answer.
 Parses <answer>...</answer> from completion and removes all reasoning.
 
-Note: Datasets must be uploaded to HuggingFace first (run upload_datasets.py).
-
 Usage:
-    uv run python scripts/remove_reasoning.py raw        # Process base dataset
+    uv run python scripts/remove_reasoning.py source     # Process source evals dataset
     uv run python scripts/remove_reasoning.py filtered   # Process filtered dataset
     uv run python scripts/remove_reasoning.py unique     # Process unique dataset
 """
 
 import argparse
-import os
 import re
 
 from datasets import Dataset, DatasetDict, load_dataset
-from dotenv import load_dotenv
-from huggingface_hub import login
 from tqdm import tqdm
 
-load_dotenv()
-
-# Dataset configuration
-DATASETS = {
-    "raw": "siro1/kernelbook-glm4_7-evals",
-    "filtered": "siro1/kernelbook-glm4_7-evals-filtered",
-    "unique": "siro1/kernelbook-glm4_7-evals-unique",
-}
+import config
 
 SPLIT_RATIO = 0.1
 SEED = 42
@@ -91,21 +79,28 @@ def main():
     )
     parser.add_argument(
         "dataset",
-        choices=["raw", "filtered", "unique"],
+        choices=["source", "filtered", "unique"],
         help="Which dataset to process",
     )
     args = parser.parse_args()
 
-    # Login to HuggingFace
-    hf_token = os.environ.get("HF_TOKEN")
-    if not hf_token:
-        raise ValueError("HF_TOKEN not found in environment")
-    login(token=hf_token)
-    print("Logged in to HuggingFace")
+    print("=" * 60)
+    print("Remove Reasoning Pipeline")
+    print("=" * 60)
+    config.print_config()
 
-    # Load dataset
-    source_repo = DATASETS[args.dataset]
-    target_repo = f"{source_repo}-no-reasoning"
+    # Login to HuggingFace
+    config.hf_login()
+
+    # Determine source and target repos
+    if args.dataset == "source":
+        source_repo = config.get_source_repo()
+    elif args.dataset == "filtered":
+        source_repo = config.get_filtered_repo()
+    else:  # unique
+        source_repo = config.get_unique_repo()
+
+    target_repo = config.get_no_reasoning_repo(source_repo)
 
     print(f"\n{'=' * 60}")
     print(f"Processing: {source_repo}")
