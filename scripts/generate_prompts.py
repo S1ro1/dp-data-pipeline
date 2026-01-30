@@ -101,6 +101,7 @@ async def generate_prompt(
         module_name = sample["module_name"]
         python_code = sample["python_code"]
         triton_code = sample["triton_code"]
+        uuid = sample["uuid"]
 
         generation_prompt = PROMPT_GENERATION_TEMPLATE.format(
             module_name=module_name,
@@ -134,6 +135,7 @@ async def generate_prompt(
                     "module_name": module_name,
                     "python_code": python_code,
                     "triton_code": triton_code,
+                    "uuid": uuid,
                 }
 
             except Exception as e:
